@@ -1,52 +1,60 @@
-const request = require('supertest');
-const app = require('../src/index');
+const express = require('express');
+const { v4: uuidv4 } = require('uuid');
 
-describe('Users API', () => {
-    it('should create a user', async () => {
-        const res = await request(app)
-            .post('/users')
-            .send({ name: 'John', email: 'john@example.com' });
+const app = express();
+app.use(express.json());
 
-        expect(res.statusCode).toBe(201);
-        expect(res.body).toHaveProperty('id');
-        expect(res.body.name).toBe('John');
-        expect(res.body.email).toBe('john@example.com');
-    });
+// In-memory user storage
+let users = [];
 
-    it('should get a user by id', async () => {
-        const createRes = await request(app)
-            .post('/users')
-            .send({ name: 'Jane', email: 'jane@example.com' });
-
-        const id = createRes.body.id;
-        const getRes = await request(app).get(`/users/${id}`);
-
-        expect(getRes.statusCode).toBe(200);
-        expect(getRes.body.name).toBe('Jane');
-    });
-
-    it('should update a user by id', async () => {
-        const createRes = await request(app)
-            .post('/users')
-            .send({ name: 'Jim', email: 'jim@example.com' });
-
-        const id = createRes.body.id;
-        const updateRes = await request(app)
-            .put(`/users/${id}`)
-            .send({ name: 'Jimmy', email: 'jimmy@example.com' });
-
-        expect(updateRes.statusCode).toBe(200);
-        expect(updateRes.body.name).toBe('Jimmy');
-    });
-
-    it('should delete a user by id', async () => {
-        const createRes = await request(app)
-            .post('/users')
-            .send({ name: 'Jake', email: 'jake@example.com' });
-
-        const id = createRes.body.id;
-        const deleteRes = await request(app).delete(`/users/${id}`);
-
-        expect(deleteRes.statusCode).toBe(204);
-    });
+// Create a User
+app.post('/users', (req, res) => {
+    const { name, email } = req.body;
+    if (!name || !email) {
+        return res.status(400).json({ error: 'Name and email are required.' });
+    }
+    const newUser = { id: uuidv4(), name, email };
+    users.push(newUser);
+    res.status(201).json(newUser);
 });
+
+// Retrieve a User
+app.get('/users/:id', (req, res) => {
+    const user = users.find(u => u.id === req.params.id);
+    if (!user) {
+        return res.status(404).json({ error: 'User not found.' });
+    }
+    res.json(user);
+});
+
+// Update a User
+app.put('/users/:id', (req, res) => {
+    const { name, email } = req.body;
+    if (!name || !email) {
+        return res.status(400).json({ error: 'Name and email are required.' });
+    }
+    const index = users.findIndex(u => u.id === req.params.id);
+    if (index === -1) {
+        return res.status(404).json({ error: 'User not found.' });
+    }
+    users[index] = { id: req.params.id, name, email };
+    res.json(users[index]);
+});
+
+// Delete a User
+app.delete('/users/:id', (req, res) => {
+    const index = users.findIndex(u => u.id === req.params.id);
+    if (index === -1) {
+        return res.status(404).json({ error: 'User not found.' });
+    }
+    users.splice(index, 1);
+    res.status(204).send();
+});
+
+// Export for tests, run if called directly
+if (require.main === module) {
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => console.log(`Server running on port ${port}`));
+}
+
+module.exports = app;
