@@ -1,60 +1,38 @@
-const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+const request = require("supertest");
+const app = require("../src/index.js");
 
-const app = express();
-app.use(express.json());
+let userId;
 
-// In-memory user storage
-let users = [];
+describe("User Management API", () => {
+    test("POST /users should create a new user", async () => {
+        const response = await request(app)
+            .post("/users")
+            .send({ name: "John Doe", email: "john@example.com" })
+            .expect(201);
+        userId = response.body.id;
+    });
 
-// Create a User
-app.post('/users', (req, res) => {
-    const { name, email } = req.body;
-    if (!name || !email) {
-        return res.status(400).json({ error: 'Name and email are required.' });
-    }
-    const newUser = { id: uuidv4(), name, email };
-    users.push(newUser);
-    res.status(201).json(newUser);
+    test("GET /users/:id should return user details", async () => {
+        await request(app).get(`/users/${userId}`).expect(200);
+    });
+
+    test("GET /users/:id should return 404 for non-existent user", async () => {
+        await request(app).get("/users/nonexistent").expect(404);
+    });
+
+    test("PUT /users/:id should update user details", async () => {
+        await request(app).put(`/users/${userId}`).send({ name: "Jane Doe" }).expect(200);
+    });
+
+    test("PUT /users/:id should return 404 if user does not exist", async () => {
+        await request(app).put("/users/nonexistent").send({ name: "X" }).expect(404);
+    });
+
+    test("DELETE /users/:id should delete the user", async () => {
+        await request(app).delete(`/users/${userId}`).expect(200);
+    });
+
+    test("DELETE /users/:id should return 404 if user does not exist", async () => {
+        await request(app).delete("/users/nonexistent").expect(404);
+    });
 });
-
-// Retrieve a User
-app.get('/users/:id', (req, res) => {
-    const user = users.find(u => u.id === req.params.id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found.' });
-    }
-    res.json(user);
-});
-
-// Update a User
-app.put('/users/:id', (req, res) => {
-    const { name, email } = req.body;
-    if (!name || !email) {
-        return res.status(400).json({ error: 'Name and email are required.' });
-    }
-    const index = users.findIndex(u => u.id === req.params.id);
-    if (index === -1) {
-        return res.status(404).json({ error: 'User not found.' });
-    }
-    users[index] = { id: req.params.id, name, email };
-    res.json(users[index]);
-});
-
-// Delete a User
-app.delete('/users/:id', (req, res) => {
-    const index = users.findIndex(u => u.id === req.params.id);
-    if (index === -1) {
-        return res.status(404).json({ error: 'User not found.' });
-    }
-    users.splice(index, 1);
-    res.status(204).send();
-});
-
-// Export for tests, run if called directly
-if (require.main === module) {
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => console.log(`Server running on port ${port}`));
-}
-
-module.exports = app;
